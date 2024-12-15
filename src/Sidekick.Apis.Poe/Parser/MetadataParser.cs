@@ -1,19 +1,24 @@
 using System.Text.RegularExpressions;
 using Sidekick.Apis.Poe.Metadata;
 using Sidekick.Apis.Poe.Parser.Patterns;
+using Sidekick.Common.Game;
 using Sidekick.Common.Game.Items;
 using Sidekick.Common.Game.Languages;
+using Sidekick.Common.Settings;
+using Sidekick.Common.Extensions;
 
 namespace Sidekick.Apis.Poe.Parser
 {
     public class MetadataParser(
         IGameLanguageProvider gameLanguageProvider,
         IParserPatterns parserPatterns,
-        IMetadataProvider data) : IItemMetadataParser
+        IMetadataProvider data,
+        ISettingsService settingsService) : IItemMetadataParser
     {
         private Regex Affixes { get; set; } = null!;
-
         private Regex SuperiorAffix { get; set; } = null!;
+        private GameType Game { get; set; }
+        private ISettingsService SettingsService { get; } = settingsService;
 
         /// <inheritdoc/>
         public int Priority => 200;
@@ -27,7 +32,7 @@ namespace Sidekick.Apis.Poe.Parser
                                                                   .Trim(' ', ',');
 
         /// <inheritdoc/>
-        public Task Initialize()
+        public async Task Initialize()
         {
             var getRegexLine = (string input) =>
             {
@@ -44,7 +49,8 @@ namespace Sidekick.Apis.Poe.Parser
             Affixes = new Regex("(?:" + getRegexLine(gameLanguageProvider.Language.AffixSuperior) + "|" + getRegexLine(gameLanguageProvider.Language.AffixBlighted) + "|" + getRegexLine(gameLanguageProvider.Language.AffixBlightRavaged) + "|" + getRegexLine(gameLanguageProvider.Language.AffixAnomalous) + "|" + getRegexLine(gameLanguageProvider.Language.AffixDivergent) + "|" + getRegexLine(gameLanguageProvider.Language.AffixPhantasmal) + ")");
             SuperiorAffix = new Regex("(?:" + getRegexLine(gameLanguageProvider.Language.AffixSuperior) + ")");
 
-            return Task.CompletedTask;
+            var leagueId = await SettingsService.GetString(SettingKeys.LeagueId);
+            Game = leagueId.GetGameFromLeagueId();
         }
 
         public ItemMetadata? Parse(ParsingItem parsingItem)
@@ -62,7 +68,18 @@ namespace Sidekick.Apis.Poe.Parser
                         .Lines[0].Text,
                     out var vaalGem))
             {
-                return vaalGem.First();
+                var vaalGemMetadata = vaalGem.First();
+                return new ItemMetadata
+                {
+                    Id = vaalGemMetadata.Id,
+                    Name = vaalGemMetadata.Name,
+                    Type = vaalGemMetadata.Type,
+                    ApiType = vaalGemMetadata.ApiType,
+                    ApiTypeDiscriminator = vaalGemMetadata.ApiTypeDiscriminator,
+                    Category = vaalGemMetadata.Category,
+                    Rarity = vaalGemMetadata.Rarity,
+                    Game = Game
+                };
             }
 
             // Get name and type text
@@ -82,6 +99,31 @@ namespace Sidekick.Apis.Poe.Parser
             {
                 name = parsingBlock.Lines[1].Text;
                 type = parsingBlock.Lines[0].Text;
+            }
+
+            // For magic items, strip off the suffix from the name
+            if (itemRarity == Rarity.Magic && name != null)
+            {
+                var parts = name.Split(" of ");
+                if (parts.Length > 1)
+                {
+                    name = parts[0];
+                }
+            }
+
+            // Handle bow types
+            if (parsingBlock.Lines[0].Text.Contains("Item Class: Bows") || 
+                (parsingItem.Blocks.Count > 1 && parsingItem.Blocks[1].Lines.Any(x => x.Text == "Bow")))
+            {
+                return new ItemMetadata
+                {
+                    Id = "weapon.bow",
+                    Type = name,  // For magic items, use the stripped name as the type
+                    Name = name,
+                    Category = Category.Weapon,
+                    Rarity = itemRarity,
+                    Game = GameType.PathOfExile2  // Always use trade2 API for bows
+                };
             }
 
             // Rares may have conflicting names, so we don't want to search any unique items that may have that name. Like "Ancient Orb" which can be used by abyss jewels.
@@ -112,7 +154,17 @@ namespace Sidekick.Apis.Poe.Parser
                 result.Name = name;
             }
 
-            return result;
+            return new ItemMetadata
+            {
+                Id = result.Id,
+                Name = result.Name,
+                Type = result.Type,
+                ApiType = result.ApiType,
+                ApiTypeDiscriminator = result.ApiTypeDiscriminator,
+                Category = result.Category,
+                Rarity = result.Rarity,
+                Game = Game
+            };
         }
 
         public ItemMetadata? Parse(
@@ -160,27 +212,45 @@ namespace Sidekick.Apis.Poe.Parser
                 }
             }
 
+            ItemMetadata? result = null;
+
             if (results.Any(x => x.Type == type))
             {
-                return results.FirstOrDefault(x => x.Type == type);
+                result = results.FirstOrDefault(x => x.Type == type);
             }
-
-            if (results.Any(x => x.ApiType == type))
+            else if (results.Any(x => x.ApiType == type))
             {
-                return results.FirstOrDefault(x => x.ApiType == type);
+                result = results.FirstOrDefault(x => x.ApiType == type);
             }
-
-            if (results.Any(x => x.Rarity == Rarity.Unique))
+            else if (results.Any(x => x.Rarity == Rarity.Unique))
             {
-                return results.FirstOrDefault(x => x.Rarity == Rarity.Unique);
+                result = results.FirstOrDefault(x => x.Rarity == Rarity.Unique);
             }
-
-            if (results.Any(x => x.Rarity == Rarity.Unknown))
+            else if (results.Any(x => x.Rarity == Rarity.Unknown))
             {
-                return results.FirstOrDefault(x => x.Rarity == Rarity.Unknown);
+                result = results.FirstOrDefault(x => x.Rarity == Rarity.Unknown);
+            }
+            else
+            {
+                result = results.FirstOrDefault();
             }
 
-            return results.FirstOrDefault();
+            if (result == null)
+            {
+                return null;
+            }
+
+            return new ItemMetadata
+            {
+                Id = result.Id,
+                Name = result.Name,
+                Type = result.Type,
+                ApiType = result.ApiType,
+                ApiTypeDiscriminator = result.ApiTypeDiscriminator,
+                Category = result.Category,
+                Rarity = result.Rarity,
+                Game = Game
+            };
         }
 
         private Rarity GetRarity(ParsingBlock parsingBlock)
