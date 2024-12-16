@@ -1,49 +1,81 @@
 @using Sidekick.Apis.Poe.Trade.Models
-@using Sidekick.Common.Game.Items
-@using Sidekick.Common.Ui.Forms
-@using Sidekick.Common.Ui.Poe.Items
-@using System.Text.Json
+@using Sidekick.Common.Game.Languages
 
 <FilterWrapper>
-    <div class="flex flex-nowrap items-center w-full">
-        <div class="grow min-w-0">
+    <div class="flex flex-nowrap items-center">
+        <div class="grow">
             @if (Filter.ValueType == FilterValueType.Boolean)
             {
-                <FormTriStateCheckbox @bind-Value="Filter.Enabled"
-                                    NoMargin="true">
+                <FormTriStateCheckbox @bind-Value="Filter.Checked"
+                                      NoMargin="true">
                     <ItemPropertyText Label="@Filter.Text"
-                                    Value="@GetDisplayValue()"
-                                    OnlyShowLabel="true" />
+                                      Value="@Filter.Value.ToString()"
+                                      OnlyShowLabel="true"/>
                 </FormTriStateCheckbox>
             }
             else
             {
-                <FormCheckbox Value="Filter.Enabled ?? false"
-                             NoMargin="true"
-                             ValueChanged="(v) => Filter.Enabled = v">
-                    <ItemPropertyText Label="@Filter.Text.Replace("DamageRange", "")"
-                                    Value="@GetDisplayValue()"
-                                    OnlyShowLabel="false" />
+                <FormCheckbox Value="Filter.Checked ?? false"
+                              NoMargin="true"
+                              ValueChanged="(v) => Filter.Checked = v">
+                    @if (Filter.Type == PropertyFilterType.Weapon_Damage)
+                    {
+                        if (PriceCheckService.Item?.Properties.PhysicalDamage != null)
+                        {
+                            <ItemPropertyText Label="@GameLanguageProvider.Language.DescriptionPhysicalDamage"
+                                              Value="@PriceCheckService.Item.Properties.PhysicalDamage.ToDisplayString()"
+                                              ContentType="LineContentType.Physical"/>
+                        }
+                        if (PriceCheckService.Item?.Properties.FireDamage != null)
+                        {
+                            <ItemPropertyText Label="@GameLanguageProvider.Language.DescriptionFireDamage"
+                                              Value="@PriceCheckService.Item.Properties.FireDamage.ToDisplayString()"
+                                              ContentType="LineContentType.Fire"/>
+                        }
+                        if (PriceCheckService.Item?.Properties.ColdDamage != null)
+                        {
+                            <ItemPropertyText Label="@GameLanguageProvider.Language.DescriptionColdDamage"
+                                              Value="@PriceCheckService.Item.Properties.ColdDamage.ToDisplayString()"
+                                              ContentType="LineContentType.Cold"/>
+                        }
+                        if (PriceCheckService.Item?.Properties.LightningDamage != null)
+                        {
+                            <ItemPropertyText Label="@GameLanguageProvider.Language.DescriptionLightningDamage"
+                                              Value="@PriceCheckService.Item.Properties.LightningDamage.ToDisplayString()"
+                                              ContentType="LineContentType.Lightning"/>
+                        }
+                        if (PriceCheckService.Item?.Properties.ChaosDamage != null)
+                        {
+                            <ItemPropertyText Label="@GameLanguageProvider.Language.DescriptionChaosDamage"
+                                              Value="@PriceCheckService.Item.Properties.ChaosDamage.ToDisplayString()"
+                                              ContentType="LineContentType.Chaos"/>
+                        }
+                    }
+                    else
+                    {
+                        <ItemPropertyText Label="@Filter.Text"
+                                          Value="@Filter.Value.ToString()"/>
+                    }
                 </FormCheckbox>
             }
         </div>
 
-        @if ((Filter.Enabled ?? false) && HasValueFilters)
+        @if ((Filter.Checked ?? false) && HasValueFilters)
         {
-            <div class="ml-4">
-                <FilterRange @bind-Min="Filter.Min" 
-                            @bind-Max="Filter.Max" 
-                            TypeChanged="TypeChanged" />
-            </div>
+            <FilterRange @bind-Min="@Filter.Min" @bind-Max="@Filter.Max" TypeChanged="TypeChanged"/>
         }
     </div>
 </FilterWrapper>
 
+@inject PriceCheckService PriceCheckService
+@inject IGameLanguageProvider GameLanguageProvider
+
 @code {
+
     [Parameter]
     public required PropertyFilter Filter { get; set; }
 
-    private bool HasValueFilters => Filter.ValueType is FilterValueType.Double or FilterValueType.Int or FilterValueType.DamageRange;
+    private bool HasValueFilters => Filter.ValueType is FilterValueType.Double or FilterValueType.Int;
 
     private void TypeChanged(FilterRange.RangeType type)
     {
@@ -59,9 +91,7 @@
                 Filter.Min = null;
                 break;
 
-            case FilterRange.RangeType.Equals:
-                Filter.SetExactValue();
-                break;
+            case FilterRange.RangeType.Equals: Filter.SetExactValue(); break;
 
             case FilterRange.RangeType.Range:
                 Filter.NormalizeMinValue();
@@ -70,44 +100,4 @@
         }
     }
 
-    private string GetDisplayValue()
-    {
-        try 
-        {
-            if (Filter.Value == null) return string.Empty;
-
-            return Filter.Value switch
-            {
-                DamageRange range => FormatDamageRange(range),
-                IEnumerable<DamageRange> ranges => string.Join(" + ", ranges.Select(FormatDamageRange)),
-                _ => Filter.Value?.ToString() ?? string.Empty
-            };
-        }
-        catch (JsonException)
-        {
-            // Handle JSON deserialization errors gracefully
-            return string.Empty;
-        }
-    }
-
-    private string FormatDamageRange(DamageRange range)
-    {
-        try
-        {
-            if (range == null) return string.Empty;
-            
-            var damageRange = $"{range.Min:F0}-{range.Max:F0}";
-            return range.Type switch
-            {
-                DamageType.Fire => $"<span class=\"text-[#c23c2a]\">{damageRange}</span>",
-                DamageType.Cold => $"<span class=\"text-[#3f6db3]\">{damageRange}</span>",
-                DamageType.Lightning => $"<span class=\"text-[#e8b631]\">{damageRange}</span>",
-                _ => damageRange
-            };
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
 }

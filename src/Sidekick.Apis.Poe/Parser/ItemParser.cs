@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 using FuzzySharp;
 using FuzzySharp.SimilarityRatio;
@@ -70,10 +69,10 @@ namespace Sidekick.Apis.Poe.Parser
                 ParseRequirements(parsingItem);
 
                 var header = ParseHeader(parsingItem);
-                var properties = propertyParser.Parse(parsingItem);
                 var influences = ParseInfluences(parsingItem);
                 var sockets = socketParser.Parse(parsingItem);
                 var modifierLines = ParseModifiers(parsingItem);
+                var properties = propertyParser.Parse(parsingItem, modifierLines);
                 var pseudoModifiers = parsingItem.Metadata.Game == GameType.PathOfExile ? ParsePseudoModifiers(modifierLines) : [];
                 var item = new Item(metadata: metadata,
                                     invariant: invariant,
@@ -120,26 +119,24 @@ namespace Sidekick.Apis.Poe.Parser
         private Header ParseHeader(ParsingItem parsingItem)
         {
             var firstLine = parsingItem.Blocks[0].Lines[0].Text;
-            string? apiItemCategoryId = null;
+            string? apiItemCategoryId;
 
             if (firstLine.StartsWith(gameLanguageProvider.Language.Classes.Prefix))
             {
-                var classLine = firstLine.Replace(gameLanguageProvider.Language.Classes.Prefix + ":", "").Trim();
-                
-                // Direct mapping for known item classes
-                apiItemCategoryId = classLine switch
-                {
-                    "Bows" => "weapon.bow",
-                    "Misc Map Items" => "map.fragment",
-                    _ => null
-                };
+                var classLine = firstLine.Replace(gameLanguageProvider.Language.Classes.Prefix, "").Trim(' ', ':');
 
-                // Fallback to fuzzy matching if no direct match
-                if (apiItemCategoryId == null)
+                // There is a weird thing where the API says Map Fragment and the game says Misc Map Items. I thought we could hardcode it here.
+                if (classLine == gameLanguageProvider.Language.Classes.MiscMapItems)
                 {
-                    var categoryToMatch = new ApiFilterOption { Text = classLine };
-                    apiItemCategoryId = Process.ExtractOne(categoryToMatch, metadataProvider.ApiItemCategories, x => x.Text, ScorerCache.Get<DefaultRatioScorer>())?.Value?.Id ?? null;
+                    classLine = gameLanguageProvider.Language.Classes.MapFragments;
                 }
+
+                var categoryToMatch = new ApiFilterOption { Text = classLine };
+                apiItemCategoryId = Process.ExtractOne(categoryToMatch, metadataProvider.ApiItemCategories, x => x.Text, ScorerCache.Get<DefaultRatioScorer>())?.Value?.Id ?? null;
+            }
+            else
+            {
+                apiItemCategoryId = null;
             }
 
             return new Header()

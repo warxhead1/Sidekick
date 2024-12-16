@@ -1,12 +1,10 @@
-using System.Text.Json.Serialization;
-
 namespace Sidekick.Common.Game.Items;
 
-public class DamageRange
+public class DamageRange(double min, double max)
 {
-    public double Min { get; set; }
-    public double Max { get; set; }
-    public DamageType Type { get; set; }
+    public double Min { get; init; } = min;
+
+    public double Max { get; init; } = max;
 
     public override string ToString()
     {
@@ -18,8 +16,8 @@ public class DamageRange
         return $"{Min:F0}-{Max:F0}";
     }
 
-    public bool HasValue()
+    public double GetDps(double attacksPerSecond)
     {
-        return Min > 0 || Max > 0;
+        return Math.Round(((Min + Max) / 2) * attacksPerSecond, 1);
     }
-} 
+}
