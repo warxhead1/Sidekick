@@ -9,6 +9,10 @@ public static class SettingKeys
     public const string BearerToken = nameof(BearerToken);
     public const string BearerExpiration = nameof(BearerExpiration);
 
+    // Cloudflare settings
+    public const string CloudflareCookie = nameof(CloudflareCookie);
+    public const string CloudflareCookieExpiry = nameof(CloudflareCookieExpiry);
+
     public const string LanguageParser = nameof(LanguageParser);
     public const string LanguageUi = nameof(LanguageUi);
     public const string LeagueId = nameof(LeagueId);
@@ -40,4 +44,6 @@ public static class SettingKeys
     public const string WealthEnabled = nameof(WealthEnabled);
     public const string WealthTrackedTabs = nameof(WealthTrackedTabs);
     public const string WealthItemTotalMinimum = nameof(WealthItemTotalMinimum);
+
+    public const string SavedFilterValues = nameof(SavedFilterValues);
 }

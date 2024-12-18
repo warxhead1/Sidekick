@@ -6,46 +6,282 @@ using System.Windows.Forms;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Sidekick.Common.Ui.Views;
 using Sidekick.Wpf.Services;
+using Microsoft.Web.WebView2.Core;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace Sidekick.Wpf;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml
 /// </summary>
-public partial class MainWindow : IDisposable
+public partial class MainWindow : Window, IDisposable, INotifyPropertyChanged
 {
     private readonly WpfViewLocator viewLocator;
+    private readonly ILogger<MainWindow> logger;
     private bool isClosing;
+    private bool webViewInitialized;
+    private string? webView2RuntimePath;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     private IServiceScope Scope { get; set; }
 
     public Guid Id { get; set; }
 
+    public string? WebView2RuntimePath
+    {
+        get => webView2RuntimePath;
+        set
+        {
+            if (webView2RuntimePath != value)
+            {
+                webView2RuntimePath = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(WebView2RuntimePath)));
+            }
+        }
+    }
+
     public MainWindow(WpfViewLocator viewLocator)
     {
-        Scope = App.ServiceProvider.CreateScope();
-        Resources.Add("services", Scope.ServiceProvider);
-        InitializeComponent();
-        this.viewLocator = viewLocator;
+        try
+        {
+            this.viewLocator = viewLocator;
+            Scope = App.ServiceProvider.CreateScope();
+            logger = Scope.ServiceProvider.GetRequiredService<ILogger<MainWindow>>();
+            
+            logger.LogDebug("[MainWindow] Creating service scope");
+            Resources.Add("services", Scope.ServiceProvider);
+
+            // Try to find WebView2 runtime path
+            try
+            {
+                var runtimePath = CoreWebView2Environment.GetAvailableBrowserVersionString();
+                if (!string.IsNullOrEmpty(runtimePath))
+                {
+                    WebView2RuntimePath = Path.GetDirectoryName(runtimePath);
+                    logger.LogInformation("[MainWindow] Found WebView2 runtime at: {0}", WebView2RuntimePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "[MainWindow] Could not determine WebView2 runtime path");
+            }
+            
+            logger.LogDebug("[MainWindow] Initializing component");
+            InitializeComponent();
+
+            // Add window loaded event handler
+            Loaded += MainWindow_Loaded;
+            
+            // Add source initialized handler
+            SourceInitialized += MainWindow_SourceInitialized;
+            
+            logger.LogInformation("[MainWindow] Window initialized successfully");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[MainWindow] Error initializing MainWindow");
+            System.Windows.MessageBox.Show($"Error initializing MainWindow: {ex.Message}\n\nStack trace:\n{ex.StackTrace}", "Initialization Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            throw;
+        }
+    }
+
+    private void MainWindow_SourceInitialized(object? sender, EventArgs e)
+    {
+        try
+        {
+            logger.LogDebug("[MainWindow] Window source initialized");
+            
+            // Ensure WebView is created
+            if (WebView == null)
+            {
+                logger.LogError("[MainWindow] WebView control is null after source initialization");
+                return;
+            }
+
+            // Set up WebView error handler
+            if (WebView.WebView != null)
+            {
+                WebView.WebView.CoreWebView2InitializationCompleted += (s, e) =>
+                {
+                    if (!e.IsSuccess)
+                    {
+                        logger.LogError(e.InitializationException, "[MainWindow] WebView2 initialization failed");
+                    }
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[MainWindow] Error in source initialized handler");
+        }
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            logger.LogDebug("[MainWindow] Window loaded event triggered");
+
+            // Initialize WebView2 after the window is loaded
+            await Task.Delay(500); // Give the window time to fully initialize
+            await InitializeWebViewAsync();
+
+            if (!webViewInitialized)
+            {
+                logger.LogWarning("[MainWindow] Window loaded but WebView is not initialized yet");
+            }
+            else
+            {
+                LoadingOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[MainWindow] Error in window loaded event handler");
+            System.Windows.MessageBox.Show($"Error in window loaded event: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task InitializeWebViewAsync()
+    {
+        try
+        {
+            logger.LogDebug("[MainWindow] Starting WebView initialization");
+
+            if (WebView == null)
+            {
+                logger.LogError("[MainWindow] WebView control is null");
+                throw new InvalidOperationException("WebView control is null");
+            }
+
+            // Wait for Blazor WebView to initialize its own WebView2 environment
+            int retryCount = 0;
+            const int maxRetries = 20; // Increase max retries
+            const int delayMs = 250; // Increase delay between retries
+
+            while (WebView.WebView == null && retryCount < maxRetries)
+            {
+                await Task.Delay(delayMs);
+                retryCount++;
+                logger.LogDebug("[MainWindow] Waiting for WebView2 initialization, attempt {0}/{1}", retryCount, maxRetries);
+            }
+
+            if (WebView.WebView == null)
+            {
+                logger.LogError("[MainWindow] WebView.WebView is still null after {0} attempts", retryCount);
+                throw new InvalidOperationException("WebView.WebView initialization timeout");
+            }
+
+            // Wait for CoreWebView2 to be initialized by Blazor
+            retryCount = 0;
+            while (WebView.WebView.CoreWebView2 == null && retryCount < maxRetries)
+            {
+                await Task.Delay(delayMs);
+                retryCount++;
+                logger.LogDebug("[MainWindow] Waiting for CoreWebView2 initialization, attempt {0}/{1}", retryCount, maxRetries);
+            }
+
+            if (WebView.WebView.CoreWebView2 == null)
+            {
+                logger.LogError("[MainWindow] CoreWebView2 is still null after {0} attempts", retryCount);
+                throw new InvalidOperationException("CoreWebView2 initialization timeout");
+            }
+
+            // Configure WebView2 settings
+            try
+            {
+                WebView.WebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                WebView.WebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                WebView.WebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+                WebView.WebView.CoreWebView2.Settings.IsZoomControlEnabled = false;
+
+                webViewInitialized = true;
+                logger.LogInformation("[MainWindow] WebView2 initialization completed successfully");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[MainWindow] Error configuring WebView2 settings");
+                throw;
+            }
+
+            // Set up event handlers
+            try
+            {
+                WebView.WebView.NavigationCompleted += (s, e) =>
+                {
+                    if (e.IsSuccess)
+                    {
+                        logger.LogInformation("[MainWindow] Navigation completed successfully");
+                    }
+                    else
+                    {
+                        logger.LogError("[MainWindow] Navigation failed with WebErrorStatus: {0}", e.WebErrorStatus);
+                    }
+                };
+
+                WebView.WebView.SourceChanged += (s, e) =>
+                {
+                    logger.LogDebug("[MainWindow] WebView source changed to: {0}", WebView.WebView.Source);
+                };
+
+                logger.LogDebug("[MainWindow] WebView event handlers attached");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[MainWindow] Error setting up WebView2 event handlers");
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[MainWindow] Error during WebView initialization");
+            throw;
+        }
     }
 
     internal SidekickView? SidekickView { get; set; }
 
-    internal string? CurrentWebPath => WebUtility.UrlDecode(WebView.WebView.Source?.ToString());
+    internal string? CurrentWebPath => WebView?.WebView?.Source?.ToString() != null ? WebUtility.UrlDecode(WebView.WebView.Source.ToString()) : null;
 
     public void Ready()
     {
-        // This avoids the white flicker which is caused by the page content not being loaded initially. We show the webview control only when the content is ready.
-        WebView.Visibility = Visibility.Visible;
+        try
+        {
+            logger.LogDebug("[MainWindow] Ready() called");
 
-        // The window background is transparent to avoid any flickering when opening a window. When the webview content is ready we need to set a background color. Otherwise, mouse clicks will go through the window.
-        Background = (Brush?)new BrushConverter().ConvertFrom("#000000");
-        Opacity = 0.01;
+            if (!webViewInitialized)
+            {
+                logger.LogWarning("[MainWindow] Ready() called but WebView is not initialized");
+                return;
+            }
 
-        CenterOnScreen();
-        Activate();
+            // Hide loading overlay
+            LoadingOverlay.Visibility = Visibility.Collapsed;
+
+            // Show WebView
+            if (WebView != null)
+            {
+                WebView.Visibility = Visibility.Visible;
+            }
+
+            // The window background is transparent to avoid any flickering when opening a window. When the webview content is ready we need to set a background color. Otherwise, mouse clicks will go through the window.
+            Background = (Brush?)new BrushConverter().ConvertFrom("#000000");
+            Opacity = 0.01;
+
+            CenterOnScreen();
+            Activate();
+            logger.LogDebug("[MainWindow] Ready() completed");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[MainWindow] Error in Ready()");
+            throw;
+        }
     }
 
     protected override void OnClosed(EventArgs e)

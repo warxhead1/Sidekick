@@ -2,20 +2,66 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch web app",
+            "name": "Launch Sidekick WPF (Normal)",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/src/Sidekick/bin/Debug/net5.0/Sidekick.dll",
+            "program": "${workspaceFolder}/src/Sidekick.Wpf/bin/Debug/net8.0-windows10.0.19041.0/win-x64/Sidekick.exe",
             "args": [],
-            "cwd": "${workspaceFolder}/src/Sidekick",
+            "cwd": "${workspaceFolder}/src/Sidekick.Wpf",
             "stopAtEntry": false,
-            "serverReadyAction": {
-                "action": "openExternally",
-                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            "console": "internalConsole"
+        },
+        {
+            "name": "Launch Sidekick WPF (Debug)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/Sidekick.Wpf/bin/Debug/net8.0-windows10.0.19041.0/win-x64/Sidekick.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/Sidekick.Wpf",
+            "stopAtEntry": false,
+            "console": "internalConsole",
+            "justMyCode": false,
+            "enableStepFiltering": false,
+            "requireExactSource": false,
+            "suppressJITOptimizations": true,
+            "symbolOptions": {
+                "searchPaths": [],
+                "searchMicrosoftSymbolServer": true,
+                "searchNuGetOrgSymbolServer": true
+            },
+            "logging": {
+                "moduleLoad": false,
+                "exceptions": true,
+                "programOutput": true,
+                "engineLogging": false,
+                "browserStdOut": false
             },
             "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development"
+                "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+                "COMPlus_ReadyToRun": "0",
+                "COMPlus_ZapDisable": "1",
+                "DOTNET_NOLOGO": "1",
+                "DOTNET_CLI_UI_LANGUAGE": "en",
+                "DOTNET_ShowCollectedVariables": "1",
+                "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "0",
+                "MSBuildWarningsAsMessages": "*"
+            }
+        },
+        {
+            "name": "Attach to Sidekick",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+            "justMyCode": false,
+            "enableStepFiltering": false,
+            "requireExactSource": false,
+            "suppressJITOptimizations": true,
+            "symbolOptions": {
+                "searchPaths": [],
+                "searchMicrosoftSymbolServer": true,
+                "searchNuGetOrgSymbolServer": true
             }
         }
     ]

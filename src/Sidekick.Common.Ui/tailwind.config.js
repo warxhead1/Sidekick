@@ -1,13 +1,11 @@
 /** @type {import('tailwindcss').Config} */
-const defaultTheme = require('tailwindcss/defaultTheme');
-
-module.exports = {
+export default {
     content: ["../**/*.{razor,html,cshtml,cs}", "./**/*.js"],
     darkMode: 'selector',
     theme: {
         fontFamily: {
-            'sans': ['fontin', ...defaultTheme.fontFamily.sans],
-            'caps': ['fontin-smallcaps', 'fontin', ...defaultTheme.fontFamily.sans],
+            'sans': ['fontin', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
+            'caps': ['fontin-smallcaps', 'fontin', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
         },
         fontSize: {
             xs: '0.625rem',

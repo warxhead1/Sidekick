@@ -35,24 +35,47 @@ namespace Sidekick.Apis.Poe.Clients
         public async Task<FetchResult<TReturn>> Fetch<TReturn>(GameType game, IGameLanguage language, string path)
         {
             var name = typeof(TReturn).Name;
+            var url = language.GetTradeApiBaseUrl(game) + path;
+            
+            logger.LogInformation($"[Trade Client] Starting fetch for {name} at {url}");
 
             try
             {
-                var response = await HttpClient.GetAsync(language.GetTradeApiBaseUrl(game) + path);
+                logger.LogDebug($"[Trade Client] Sending GET request to {url}");
+                var response = await HttpClient.GetAsync(url);
+                logger.LogDebug($"[Trade Client] Received response with status code: {response.StatusCode}");
+
                 var content = await response.Content.ReadAsStreamAsync();
+                logger.LogDebug($"[Trade Client] Successfully read response content");
+
                 var result = await JsonSerializer.DeserializeAsync<FetchResult<TReturn>>(content, Options);
                 if (result != null)
                 {
+                    logger.LogInformation($"[Trade Client] Successfully fetched and deserialized {name}");
                     return result;
                 }
+
+                logger.LogWarning($"[Trade Client] Deserialization resulted in null for {name}");
             }
-            catch (Exception)
+            catch (HttpRequestException ex)
             {
-                logger.LogInformation($"[Trade Client] Could not fetch {name} at {language.GetTradeApiBaseUrl(game) + path}.");
+                logger.LogError(ex, $"[Trade Client] HTTP request failed for {name} at {url}");
+                throw;
+            }
+            catch (JsonException ex)
+            {
+                logger.LogError(ex, $"[Trade Client] JSON deserialization failed for {name}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, $"[Trade Client] Unexpected error fetching {name} at {url}");
                 throw;
             }
 
-            throw new Exception("[Trade Client] Could not understand the API response.");
+            var error = $"[Trade Client] Could not understand the API response for {name}";
+            logger.LogError(error);
+            throw new Exception(error);
         }
     }
 }

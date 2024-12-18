@@ -1,13 +1,24 @@
 @using Microsoft.JSInterop;
 @using Sidekick.Wpf.Services;
+@using Microsoft.Extensions.Logging;
 
 @if (Ready)
 {
     <Sidekick.Common.Blazor.Main />
 }
+else
+{
+    <div class="flex justify-center items-center h-screen">
+        <div class="text-center">
+            <h2 class="text-xl mb-2">Initializing Sidekick...</h2>
+            <p>Please wait while the application loads.</p>
+        </div>
+    </div>
+}
 
 @inject WpfViewLocator ViewLocator
 @inject IJSRuntime JsRuntime
+@inject ILogger<SidekickBlazorWrapper> Logger
 
 @code {
 
@@ -15,16 +26,29 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!string.IsNullOrEmpty(ViewLocator.NextUrl))
+        try
         {
-            await JsRuntime.InvokeVoidAsync("eval", $"window.location = '{ViewLocator.NextUrl}'");
-            ViewLocator.NextUrl = null;
-        }
-        else
-        {
-            Ready = true;
-        }
+            Logger.LogInformation("[SidekickBlazorWrapper] Starting initialization");
+            
+            if (!string.IsNullOrEmpty(ViewLocator.NextUrl))
+            {
+                Logger.LogDebug("[SidekickBlazorWrapper] Navigating to {0}", ViewLocator.NextUrl);
+                await JsRuntime.InvokeVoidAsync("eval", $"window.location = '{ViewLocator.NextUrl}'");
+                ViewLocator.NextUrl = null;
+            }
+            else
+            {
+                Logger.LogDebug("[SidekickBlazorWrapper] Setting Ready to true");
+                Ready = true;
+            }
 
-        await base.OnInitializedAsync();
+            await base.OnInitializedAsync();
+            Logger.LogInformation("[SidekickBlazorWrapper] Initialization completed");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[SidekickBlazorWrapper] Error during initialization");
+            throw;
+        }
     }
 }

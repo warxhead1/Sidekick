@@ -51,12 +51,14 @@ public static class ServiceCollectionExtensions
                          fileSizeLimitBytes: 5242880,
                          rollOnFileSizeLimit: true)
                      .WriteTo.Sink(logSink)
+                     .WriteTo.Debug()
+                     .WriteTo.Console()
                      .CreateLogger();
 
         services.AddLogging(
             builder =>
             {
-                builder.AddSerilog();
+                builder.AddSerilog(dispose: true);
             });
         services.AddSingleton(logSink);
 

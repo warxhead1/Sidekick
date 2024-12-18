@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sidekick.Apis.Poe.Authentication;
 using Sidekick.Apis.Poe.Bulk;
 using Sidekick.Apis.Poe.Clients;
+using Sidekick.Apis.Poe.Clients.Cloudflare;
 using Sidekick.Apis.Poe.Clients.Models;
 using Sidekick.Apis.Poe.Clients.States;
 using Sidekick.Apis.Poe.Leagues;
@@ -16,6 +17,7 @@ using Sidekick.Apis.Poe.Stash;
 using Sidekick.Apis.Poe.Static;
 using Sidekick.Apis.Poe.Trade;
 using Sidekick.Common;
+using Sidekick.Common.Cloudflare;
 
 namespace Sidekick.Apis.Poe
 {
@@ -28,7 +30,11 @@ namespace Sidekick.Apis.Poe
             services.AddSingleton<IApiStateProvider, ApiStateProvider>();
             services.AddSingleton<PoeApiHandler>();
 
-            services.AddHttpClient(ClientNames.TradeClient);
+            services.AddTransient<CloudflareHandler>();
+
+            services.AddHttpClient(ClientNames.TradeClient)
+                .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler())
+                .AddHttpMessageHandler<CloudflareHandler>();
 
             services.AddHttpClient(ClientNames.PoeClient)
                 .ConfigurePrimaryHttpMessageHandler((sp) =>
@@ -37,7 +43,8 @@ namespace Sidekick.Apis.Poe
                     var apiStateProvider = sp.GetRequiredService<IApiStateProvider>();
                     var handler = new PoeApiHandler(authenticationService, apiStateProvider);
                     return handler;
-                });
+                })
+                .AddHttpMessageHandler<CloudflareHandler>();
 
             services.AddTransient<IPoeTradeClient, PoeTradeClient>();
 
@@ -50,19 +57,6 @@ namespace Sidekick.Apis.Poe
             services.AddSingleton<ILeagueProvider, LeagueProvider>();
             services.AddSingleton<ITradeFilterService, TradeFilterService>();
             services.AddSingleton<IBulkTradeService, BulkTradeService>();
-            services.AddSingleton<IModifierParser, ModifierParser>();
-            services.AddSingleton<ClusterJewelParser>();
-
-            services.AddSidekickInitializableService<IParserPatterns, ParserPatterns>();
-            services.AddSidekickInitializableService<SocketParser>();
-            services.AddSidekickInitializableService<PropertyParser>();
-            services.AddSidekickInitializableService<IInvariantMetadataProvider, InvariantMetadataProvider>();
-            services.AddSidekickInitializableService<IMetadataProvider, MetadataProvider>();
-            services.AddSidekickInitializableService<IItemMetadataParser, MetadataParser>();
-            services.AddSidekickInitializableService<IItemStaticDataProvider, ItemStaticDataProvider>();
-            services.AddSidekickInitializableService<IInvariantModifierProvider, InvariantModifierProvider>();
-            services.AddSidekickInitializableService<IModifierProvider, ModifierProvider>();
-            services.AddSidekickInitializableService<IPseudoModifierProvider, PseudoModifierProvider>();
 
             return services;
         }
