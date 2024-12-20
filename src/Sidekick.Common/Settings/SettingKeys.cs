@@ -14,6 +14,11 @@ public static class SettingKeys
     public const string LeagueId = nameof(LeagueId);
     public const string LeaguesHash = nameof(LeaguesHash);
 
+    /// <summary>
+    /// Serves the purpose of having the game localized, but wanting to trade in english when there is no trade site in the game language.
+    /// </summary>
+    public const string UseInvariantTradeResults = nameof(UseInvariantTradeResults);
+
     public const string KeyClose = nameof(KeyClose);
     public const string KeyFindItems = nameof(KeyFindItems);
     public const string KeyOpenMapCheck = nameof(KeyOpenMapCheck);
@@ -36,6 +41,7 @@ public static class SettingKeys
     public const string PriceCheckBulkCurrency = nameof(PriceCheckBulkCurrency);
     public const string PriceCheckBulkMinimumStock = nameof(PriceCheckBulkMinimumStock);
     public const string PriceCheckCurrencyMode = nameof(PriceCheckCurrencyMode);
+    public const string PriceCheckNormalizeValue = nameof(PriceCheckNormalizeValue);
 
     public const string WealthEnabled = nameof(WealthEnabled);
     public const string WealthTrackedTabs = nameof(WealthTrackedTabs);

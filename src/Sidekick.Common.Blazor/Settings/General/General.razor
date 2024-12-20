@@ -1,0 +1,21 @@
+@page "/settings"
+@layout SettingsLayout
+@inherits Sidekick.Common.Ui.Views.SidekickView
+
+<AppTitle Title="@Resources["Settings"]"/>
+<AppContainer>
+    <Heading2 Class="mb-3">@Resources["General_Settings"]</Heading2>
+    <LanguageParserEditor/>
+    <UseInvariantForTradeResults/>
+    <LeagueIdEditor/>
+    <InterfaceLanguageEditor/>
+
+    <LayoutDivider/>
+
+    <Heading2 Class="mb-3">@Resources["Other_Settings"]</Heading2>
+    <RetainClipboardEditor/>
+    <EscapeClosesOverlaysEditor/>
+    <KeyFindItemsEditor/>
+</AppContainer>
+
+@inject IStringLocalizer<SettingsResources> Resources

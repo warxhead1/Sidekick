@@ -16,11 +16,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="SQLite" Version="3.13.0"/>
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Sidekick.Common\Sidekick.Common.csproj"/>
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.117"/>
   </ItemGroup>
 
 </Project>

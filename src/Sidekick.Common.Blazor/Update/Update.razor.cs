@@ -21,13 +21,10 @@ namespace Sidekick.Common.Blazor.Update
         private IApplicationService ApplicationService { get; set; } = null!;
 
         [Inject]
-        private IStringLocalizer<UpdateResources> Resources { get; set; } = null!;
+        private IStringLocalizer<Update> Resources { get; set; } = null!;
 
         [Inject]
         private ICacheProvider CacheProvider { get; set; } = null!;
-
-        [Inject]
-        private ICurrentView CurrentView { get; set; } = null!;
 
         private string? Step { get; set; }
         private bool Error { get; set; }

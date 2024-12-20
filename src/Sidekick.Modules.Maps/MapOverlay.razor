@@ -1,20 +1,24 @@
 @page "/map/{itemText}"
 @using System.Text.RegularExpressions
 @using Sidekick.Apis.Poe
+@using Sidekick.Common.Game
 @using Sidekick.Common.Settings
 @using Sidekick.Common.Exceptions
 @using Sidekick.Common.Game.Items
 @using Sidekick.Modules.Maps.Localization
 
 @using Sidekick.Common.Extensions
+@using Sidekick.Modules.Maps.Settings
 @inherits Sidekick.Common.Ui.Views.SidekickView
 
 <AppTitle Title="@Resources["Map Check"]"/>
 
-<LayoutTwoColumn>
+<LayoutTwoColumn HasChildContent="@(Item == null || Item.Metadata.Game == GameType.PathOfExile)">
     <TopContent>
         <AppBar>
-            <AppSettings Href="/settings/map"/>
+            <AppSettings Href="/settings/map">
+                <SettingsContent/>
+            </AppSettings>
             <AppClose/>
         </AppBar>
     </TopContent>
@@ -50,7 +54,8 @@
 
                 @foreach (var mod in DangerousMods)
                 {
-                    <div class="flex items-center flex-nowrap p-1 -mx-1 duration-200 transition-colors bg-transparent hover:bg-stone-800 rounded">
+                    <div
+                        class="flex items-center flex-nowrap p-1 -mx-1 duration-200 transition-colors bg-transparent hover:bg-stone-800 rounded">
                         <div class="text-red-500">
                             <IconMedium Icon="@UiIcons.ThumbDown"/>
                         </div>
@@ -65,7 +70,8 @@
 
                 @foreach (var mod in OkMods)
                 {
-                    <div class="flex items-center flex-nowrap p-1 -mx-1 duration-200 transition-colors bg-transparent hover:bg-stone-800 rounded">
+                    <div
+                        class="flex items-center flex-nowrap p-1 -mx-1 duration-200 transition-colors bg-transparent hover:bg-stone-800 rounded">
                         <div class="text-green-500">
                             <IconMedium Icon="@UiIcons.ThumbUp"/>
                         </div>
@@ -80,16 +86,18 @@
         {
             <AppLoading/>
         }
-        else
+        else if (Item.Metadata.Game == GameType.PathOfExile)
         {
             <PoeWikiMapInfo Type="@Item.Invariant?.Type" Name="@Item.Invariant?.Name"/>
         }
     </ChildContent>
 </LayoutTwoColumn>
 
+
 @inject IStringLocalizer<MapInfoResources> Resources
 @inject IItemParser ItemParser
 @inject ISettingsService SettingsService
+@implements IDisposable
 
 @code {
 
@@ -112,10 +120,29 @@
 
     public override int ViewWidth => 620;
 
+    protected override void OnInitialized()
+    {
+        SettingsService.OnSettingsChanged += SettingsServiceOnOnSettingsChanged;
+        base.OnInitialized();
+    }
+
+    private void SettingsServiceOnOnSettingsChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await UpdateOverlay();
+            StateHasChanged();
+        });
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         await base.OnParametersSetAsync();
+        await UpdateOverlay();
+    }
 
+    private async Task UpdateOverlay()
+    {
         if (string.IsNullOrEmpty(ItemText))
         {
             return;
@@ -144,9 +171,7 @@
         }
     }
 
-    private void FilterMods(
-        Regex? modRegex,
-        List<ModifierLine> modifierLines)
+    private void FilterMods(Regex? modRegex, List<ModifierLine> modifierLines)
     {
         if (modRegex == null)
         {
@@ -165,6 +190,11 @@
                 OkMods.Add(mod.Text);
             }
         }
+    }
+
+    public void Dispose()
+    {
+        SettingsService.OnSettingsChanged -= SettingsServiceOnOnSettingsChanged;
     }
 
 }

@@ -1,0 +1,33 @@
+name: Velopack Beta
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  beta:
+    runs-on: windows-latest
+
+    steps:
+      - name: Git - Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Version
+        id: version
+        run: |
+          # Get the current date
+          $DATE = Get-Date -Format "yyyy.Md"
+
+          # Get the current time in hours and minutes (24-hour format)
+          $TIME = Get-Date -Format "Hmm"
+
+          # Construct the version using DATE and TIME
+          $VERSION = "$DATE.$TIME"
+          Write-Output "Generated version: $VERSION"
+
+          # Export version as an output
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT

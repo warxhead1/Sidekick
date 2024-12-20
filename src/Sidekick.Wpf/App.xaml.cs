@@ -21,7 +21,6 @@ using Sidekick.Modules.Development;
 using Sidekick.Modules.General;
 using Sidekick.Modules.Maps;
 using Sidekick.Modules.Wealth;
-using Sidekick.Modules.Settings;
 using Sidekick.Modules.Trade;
 using Sidekick.Wpf.Services;
 
@@ -61,7 +60,6 @@ namespace Sidekick.Wpf
             }
 
             _ = HandleInterprocessCommunications(e);
-            _ = DownloadGitHubDownloadIndicatorFile();
 
             AttachErrorHandlers();
             interprocessService.StartReceiving();
@@ -105,13 +103,6 @@ namespace Sidekick.Wpf
             return e.Args.Length > 0 && e.Args[0].ToUpper().StartsWith("SIDEKICK://");
         }
 
-        private async Task DownloadGitHubDownloadIndicatorFile()
-        {
-            await Task.Delay(10000);
-            var client = ServiceProvider.GetRequiredService<IGitHubClient>();
-            await client.DownloadGitHubDownloadIndicatorFile();
-        }
-
         private void ShutdownAndExit()
         {
             Current.Dispatcher.Invoke(() =>
@@ -132,7 +123,7 @@ namespace Sidekick.Wpf
                 // Common
                 .AddSidekickCommon()
                 .AddSidekickCommonBlazor()
-                .AddSidekickCommonDatabase()
+                .AddSidekickCommonDatabase(SidekickPaths.DatabasePath)
                 .AddSidekickCommonPlatform(o =>
                 {
                     o.WindowsIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot/favicon.ico");
@@ -151,7 +142,6 @@ namespace Sidekick.Wpf
                 .AddSidekickDevelopment()
                 .AddSidekickGeneral()
                 .AddSidekickMaps()
-                .AddSidekickSettings()
                 .AddSidekickTrade()
                 .AddSidekickWealth();
 
