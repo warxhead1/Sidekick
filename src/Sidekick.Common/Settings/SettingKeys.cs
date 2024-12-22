@@ -9,6 +9,9 @@ public static class SettingKeys
     public const string BearerToken = nameof(BearerToken);
     public const string BearerExpiration = nameof(BearerExpiration);
 
+    // Cloudflare settings
+    public const string CloudflareCookies = nameof(CloudflareCookies);
+
     public const string LanguageParser = nameof(LanguageParser);
     public const string LanguageUi = nameof(LanguageUi);
     public const string LeagueId = nameof(LeagueId);
@@ -38,7 +41,9 @@ public static class SettingKeys
     public const string PriceCheckCloseWithMouse = nameof(PriceCheckCloseWithMouse);
     public const string PriceCheckPredictionEnabled = nameof(PriceCheckPredictionEnabled);
     public const string PriceCheckItemCurrency = nameof(PriceCheckItemCurrency);
+    public const string PriceCheckItemCurrencyPoE2 = nameof(PriceCheckItemCurrencyPoE2);
     public const string PriceCheckBulkCurrency = nameof(PriceCheckBulkCurrency);
+    public const string PriceCheckBulkCurrencyPoE2 = nameof(PriceCheckBulkCurrencyPoE2);
     public const string PriceCheckBulkMinimumStock = nameof(PriceCheckBulkMinimumStock);
     public const string PriceCheckCurrencyMode = nameof(PriceCheckCurrencyMode);
     public const string PriceCheckNormalizeValue = nameof(PriceCheckNormalizeValue);

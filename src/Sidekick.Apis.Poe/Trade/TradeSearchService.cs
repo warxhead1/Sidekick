@@ -4,13 +4,13 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Sidekick.Apis.Poe.Clients;
 using Sidekick.Apis.Poe.Clients.Models;
+using Sidekick.Apis.Poe.Filters;
 using Sidekick.Apis.Poe.Modifiers;
 using Sidekick.Apis.Poe.Trade.Models;
 using Sidekick.Apis.Poe.Trade.Requests;
 using Sidekick.Apis.Poe.Trade.Requests.Filters;
 using Sidekick.Apis.Poe.Trade.Requests.Models;
 using Sidekick.Apis.Poe.Trade.Results;
-using Sidekick.Common.Enums;
 using Sidekick.Common.Exceptions;
 using Sidekick.Common.Extensions;
 using Sidekick.Common.Game;
@@ -26,12 +26,13 @@ public class TradeSearchService
     IGameLanguageProvider gameLanguageProvider,
     ISettingsService settingsService,
     IPoeTradeClient poeTradeClient,
-    IModifierProvider modifierProvider
+    IModifierProvider modifierProvider,
+    IFilterProvider filterProvider
 ) : ITradeSearchService
 {
     private readonly ILogger logger = logger;
 
-    public async Task<TradeSearchResult<string>> Search(Item item, TradeCurrency currency, PropertyFilters? propertyFilters = null, List<ModifierFilter>? modifierFilters = null, List<PseudoModifierFilter>? pseudoFilters = null)
+    public async Task<TradeSearchResult<string>> Search(Item item, PropertyFilters? propertyFilters = null, List<ModifierFilter>? modifierFilters = null, List<PseudoModifierFilter>? pseudoFilters = null)
     {
         try
         {
@@ -91,14 +92,15 @@ public class TradeSearchService
                 query.Filters.TypeFilters.Filters.Rarity = new SearchFilterOption("nonunique");
             }
 
-            var currencyValue = currency.GetValueAttribute();
-            if (!string.IsNullOrEmpty(currencyValue))
+            var currency = item.Metadata.Game == GameType.PathOfExile ? await settingsService.GetString(SettingKeys.PriceCheckItemCurrency) : await settingsService.GetString(SettingKeys.PriceCheckItemCurrencyPoE2);
+            currency = filterProvider.GetPriceOption(currency);
+            if (!string.IsNullOrEmpty(currency))
             {
                 query.Filters.TradeFilters = new TradeFilterGroup
                 {
                     Filters =
                     {
-                        Price = new SearchFilterValue(currencyValue),
+                        Price = new SearchFilterValue(currency),
                     },
                 };
             }
@@ -129,17 +131,6 @@ public class TradeSearchService
             var response = await poeTradeClient.HttpClient.PostAsync(uri, body);
 
             var content = await response.Content.ReadAsStreamAsync();
-            if (!response.IsSuccessStatusCode)
-            {
-                var responseMessage = await response.Content.ReadAsStringAsync();
-                logger.LogWarning("[Trade API] Querying failed: {responseCode} {responseMessage}", response.StatusCode, responseMessage);
-                logger.LogWarning("[Trade API] Uri: {uri}", uri);
-                logger.LogWarning("[Trade API] Query: {query}", json);
-
-                var errorResult = await JsonSerializer.DeserializeAsync<ErrorResult>(content, poeTradeClient.Options);
-                throw new ApiErrorException("[Trade API] Querying failed. " + errorResult?.Error?.Message);
-            }
-
             var result = await JsonSerializer.DeserializeAsync<TradeSearchResult<string>?>(content, poeTradeClient.Options);
             if (result != null)
             {
@@ -151,7 +142,7 @@ public class TradeSearchService
             logger.LogWarning(ex, "[Trade API] Exception thrown while querying trade api.");
         }
 
-        throw new ApiErrorException("[Trade API] Could not understand the API response.");
+        throw new ApiErrorException();
     }
 
     private SearchFilterOption? GetCategoryFilter(string? itemCategory)
@@ -415,6 +406,13 @@ public class TradeSearchService
 
         foreach (var propertyFilter in propertyFilters)
         {
+            if (propertyFilter.Type == PropertyFilterType.Misc_Corrupted)
+            {
+                filters.Filters.Corrupted = propertyFilter.Checked.HasValue ? new SearchFilterOption(propertyFilter) : null;
+                hasValue = filters.Filters.Corrupted != null;
+                break;
+            }
+
             if (propertyFilter.Checked != true)
             {
                 continue;
@@ -466,11 +464,6 @@ public class TradeSearchService
 
                 case PropertyFilterType.Misc_ItemLevel:
                     filters.Filters.ItemLevel = new SearchFilterValue(propertyFilter);
-                    hasValue = true;
-                    break;
-
-                case PropertyFilterType.Misc_Corrupted:
-                    filters.Filters.Corrupted = propertyFilter.Checked.HasValue ? new SearchFilterOption(propertyFilter) : null;
                     hasValue = true;
                     break;
 

@@ -4,10 +4,8 @@ using Microsoft.Extensions.Logging;
 using Sidekick.Apis.Poe.Bulk.Models;
 using Sidekick.Apis.Poe.Bulk.Results;
 using Sidekick.Apis.Poe.Clients;
-using Sidekick.Apis.Poe.Trade.Models;
+using Sidekick.Apis.Poe.Filters;
 using Sidekick.Apis.Poe.Trade.Requests;
-using Sidekick.Apis.Poe.Trade.Results;
-using Sidekick.Common.Enums;
 using Sidekick.Common.Exceptions;
 using Sidekick.Common.Extensions;
 using Sidekick.Common.Game;
@@ -22,6 +20,7 @@ namespace Sidekick.Apis.Poe.Bulk
         IGameLanguageProvider gameLanguageProvider,
         ISettingsService settingsService,
         IPoeTradeClient poeTradeClient,
+        IFilterProvider filterProvider,
         IItemStaticDataProvider itemStaticDataProvider) : IBulkTradeService
     {
         private readonly ILogger logger = logger;
@@ -31,7 +30,7 @@ namespace Sidekick.Apis.Poe.Bulk
             return item?.Metadata.Rarity == Rarity.Currency && itemStaticDataProvider.GetId(item.Metadata) != null;
         }
 
-        public async Task<BulkResponseModel> SearchBulk(Item item, TradeCurrency currency, int minStock)
+        public async Task<BulkResponseModel> SearchBulk(Item item)
         {
             logger.LogInformation("[Trade API] Querying Exchange API.");
 
@@ -41,28 +40,31 @@ namespace Sidekick.Apis.Poe.Bulk
             var itemId = itemStaticDataProvider.GetId(item.Metadata);
             if (itemId == null)
             {
-                throw new ApiErrorException("[Trade API] Could not find a valid item.");
+                throw new ApiErrorException { AdditionalInformation = ["Sidekick could not find a valid item."], };
             }
+
+            var currency = item.Metadata.Game == GameType.PathOfExile ? await settingsService.GetString(SettingKeys.PriceCheckBulkCurrency) : await settingsService.GetString(SettingKeys.PriceCheckBulkCurrencyPoE2);
+            currency = filterProvider.GetPriceOption(currency);
+            var minStock = await settingsService.GetInt(SettingKeys.PriceCheckBulkMinimumStock);
 
             var model = new BulkQueryRequest();
             model.Query.Want.Add(itemId);
             model.Query.Minimum = minStock;
 
-            if (currency == TradeCurrency.ChaosEquivalent || currency == TradeCurrency.ChaosOrDivine)
+            if (currency == null || currency == "chaos_divine")
             {
-                if (model.Query.Want.Any(x => x == TradeCurrency.Chaos.GetValueAttribute()))
+                if (item.Metadata.Game == GameType.PathOfExile)
                 {
-                    model.Query.Have.Add(TradeCurrency.Divine.GetValueAttribute()!);
+                    model.Query.Have.Add(model.Query.Want.Any(x => x == "chaos") ? "divine" : "chaos");
                 }
                 else
                 {
-                    model.Query.Have.Add(TradeCurrency.Chaos.GetValueAttribute()!);
+                    model.Query.Have.Add(model.Query.Want.Any(x => x == "exalted") ? "divine" : "exalted");
                 }
             }
             else
             {
-                var have = currency.GetValueAttribute();
-                model.Query.Have.Add(have!);
+                model.Query.Have.Add(currency);
             }
 
             var json = JsonSerializer.Serialize(model, poeTradeClient.Options);
@@ -70,22 +72,12 @@ namespace Sidekick.Apis.Poe.Bulk
             var response = await poeTradeClient.HttpClient.PostAsync(uri, body);
 
             var content = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning("[Trade API] Querying failed: {responseCode} {responseMessage}", response.StatusCode, content);
-                logger.LogWarning("[Trade API] Uri: {uri}", uri);
-                logger.LogWarning("[Trade API] Query: {query}", json);
-
-                var errorResult = JsonSerializer.Deserialize<ErrorResult>(content, poeTradeClient.Options);
-                throw new ApiErrorException(errorResult?.Error?.Message);
-            }
-
             try
             {
                 var result = JsonSerializer.Deserialize<BulkResponse?>(content, poeTradeClient.Options);
                 if (result == null)
                 {
-                    throw new ApiErrorException("[Trade API] Could not understand the API response.");
+                    throw new ApiErrorException();
                 }
 
                 return new BulkResponseModel(result);
@@ -93,7 +85,7 @@ namespace Sidekick.Apis.Poe.Bulk
             catch (Exception e)
             {
                 logger.LogError(e, "An exception occured while parsing the API response. {data}", content);
-                throw new ApiErrorException("[Trade API] An exception occured while parsing the API response.");
+                throw new ApiErrorException();
             }
         }
 

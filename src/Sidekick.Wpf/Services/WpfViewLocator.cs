@@ -2,25 +2,32 @@ using System.Globalization;
 using System.Net;
 using System.Windows;
 using Microsoft.Extensions.Logging;
-using Sidekick.Common.Cache;
+using Sidekick.Apis.Poe.CloudFlare;
 using Sidekick.Common.Settings;
 using Sidekick.Common.Ui.Views;
 using Sidekick.Wpf.Helpers;
 
 namespace Sidekick.Wpf.Services
 {
-    public class WpfViewLocator
-    (
-        ICacheProvider cacheProvider,
-        ISettingsService settingsService,
-        ILogger<WpfViewLocator> logger
-    ) : IViewLocator
+    public class WpfViewLocator : IViewLocator
     {
-        internal readonly ICacheProvider CacheProvider = cacheProvider;
+        private readonly ILogger<WpfViewLocator> logger;
+        private readonly ICloudflareService cloudflareService;
+        private readonly ISettingsService settingsService;
+        internal readonly IViewPreferenceService ViewPreferenceService;
 
         internal List<MainWindow> Windows { get; } = new();
 
         internal string? NextUrl { get; set; }
+
+        public WpfViewLocator(ILogger<WpfViewLocator> logger, ICloudflareService cloudflareService, ISettingsService settingsService, IViewPreferenceService viewPreferenceService)
+        {
+            this.logger = logger;
+            this.cloudflareService = cloudflareService;
+            this.settingsService = settingsService;
+            this.ViewPreferenceService = viewPreferenceService;
+            cloudflareService.ChallengeStarted += CloudflareServiceOnChallengeStarted;
+        }
 
         /// <inheritdoc/>
         public async Task Initialize(SidekickView view)
@@ -32,7 +39,7 @@ namespace Sidekick.Wpf.Services
 
             window.SidekickView = view;
             view.CurrentView.ViewChanged += CurrentViewOnViewChanged;
-            var preferences = await CacheProvider.Get<ViewPreferences>($"view_preference_{view.CurrentView.Key}");
+            var preferences = await ViewPreferenceService.Get(view.CurrentView.Key);
 
             Application.Current.Dispatcher.Invoke(() =>
             {
@@ -70,8 +77,8 @@ namespace Sidekick.Wpf.Services
                     window.ResizeMode = ResizeMode.CanResize;
                 }
 
-                    window.Ready();
-                });
+                window.Ready();
+            });
         }
 
         private void CurrentViewOnViewChanged(ICurrentView view)
@@ -86,7 +93,7 @@ namespace Sidekick.Wpf.Services
                 if (view.Height != null)
                 {
                     window.Height = view.Height.Value;
-                    window.CenterOnScreen();
+                    CenterHelper.Center(window);
                 }
 
                 window.Title = $"Sidekick {view.Title}".Trim();
@@ -101,7 +108,7 @@ namespace Sidekick.Wpf.Services
                 return;
             }
 
-            var preferences = await CacheProvider.Get<ViewPreferences>($"view_preference_{view.CurrentView.Key}");
+            var preferences = await ViewPreferenceService.Get($"view_preference_{view.CurrentView.Key}");
 
             Application.Current.Dispatcher.Invoke(() =>
             {
@@ -113,19 +120,19 @@ namespace Sidekick.Wpf.Services
                 {
                     window.WindowState = WindowState.Normal;
 
-                        if (preferences != null)
-                        {
-                            window.Height = preferences.Height;
-                            window.Width = preferences.Width;
-                        }
-                        else
-                        {
-                            window.Height = view.ViewHeight;
-                            window.Width = view.ViewWidth;
-                        }
+                    if (preferences != null)
+                    {
+                        window.Height = preferences.Height;
+                        window.Width = preferences.Width;
                     }
+                    else
+                    {
+                        window.Height = view.ViewHeight;
+                        window.Width = view.ViewWidth;
+                    }
+                }
 
-                    window.CenterOnScreen();
+                CenterHelper.Center(window);
             });
         }
 
@@ -146,7 +153,7 @@ namespace Sidekick.Wpf.Services
                 else
                 {
                     window.WindowState = WindowState.Normal;
-                    window.CenterOnScreen();
+                    CenterHelper.Center(window);
                 }
             });
             return Task.CompletedTask;
@@ -241,6 +248,20 @@ namespace Sidekick.Wpf.Services
                     ResizeMode = ResizeMode.NoResize,
                 };
                 Windows.Add(window);
+                window.Show();
+            });
+        }
+
+        private void CloudflareServiceOnChallengeStarted(Uri uri)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var window = new CloudflareWindow(logger, cloudflareService, uri)
+                {
+                    Topmost = true,
+                    ShowInTaskbar = false,
+                    ResizeMode = ResizeMode.NoResize,
+                };
                 window.Show();
             });
         }

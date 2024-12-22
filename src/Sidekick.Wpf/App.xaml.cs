@@ -1,5 +1,7 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
 using ApexCharts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,6 +16,7 @@ using Sidekick.Common.Database;
 using Sidekick.Common.Platform;
 using Sidekick.Common.Platform.Interprocess;
 using Sidekick.Common.Settings;
+using Sidekick.Common.Ui;
 using Sidekick.Common.Ui.Views;
 using Sidekick.Mock;
 using Sidekick.Modules.Chat;
@@ -40,6 +43,7 @@ namespace Sidekick.Wpf
         public App()
         {
             DeleteStaticAssets();
+            DisableWindowsTheme();
             ServiceProvider = GetServiceProvider();
             logger = ServiceProvider.GetRequiredService<ILogger<App>>();
             settingsService = ServiceProvider.GetRequiredService<ISettingsService>();
@@ -124,6 +128,7 @@ namespace Sidekick.Wpf
                 .AddSidekickCommon()
                 .AddSidekickCommonBlazor()
                 .AddSidekickCommonDatabase(SidekickPaths.DatabasePath)
+                .AddSidekickCommonUi()
                 .AddSidekickCommonPlatform(o =>
                 {
                     o.WindowsIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot/favicon.ico");
@@ -208,6 +213,12 @@ namespace Sidekick.Wpf
             {
                 // If we fail to delete static assets, the app should not be stopped from running.
             }
+        }
+
+        private void DisableWindowsTheme()
+        {
+            // Disable Aero theme text rendering
+            RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
         }
 
         private void LogException(Exception ex)
